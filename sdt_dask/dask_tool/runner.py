@@ -21,17 +21,12 @@ class Runner:
     :param client: The initialized Dask Client Object to submit the task 
         graph for computations.
     :type client: Dask Client Object
-    :param output_path: Directory path to save reports and results DataFrame.
-    :type output_path: string
     """
-
     
-    def __init__(self, client, output_path="../results/"):
+    def __init__(self, client):
         self.client = client
-        self.output_path = output_path
 
-
-    def set_up(self, KEYS, data_plug, **kwargs):
+    def set_up(self, KEYS, dataplug, **kwargs):
         """Function to retrieve datasets using the keys and DataPlugs. Sets up 
         the pipeline on the Dask Client by creating a task graph.
 
@@ -40,8 +35,13 @@ class Runner:
 
         :param keys: List of tuples to used to access PV datasets.
         :type keys: list
+        :param dataplug: DataPlug object to get datasets matching keys.
+        :type dataplug: DataPlug Object
         :param kwargs: Additional arguments for solardatatools run_pipeline.
         :type kwargs: dict
+        :return df_reports: Returns a a delayed object consisting of the task 
+            graph for computation.
+        :rtype: dict
         """
 
         def get_data(key):
@@ -73,10 +73,10 @@ class Runner:
             data_df = pd.DataFrame.from_dict(data_dict)
 
             try:
-                # Reads CSV file and creates dataframe, Here the function reads
-                # data into pandas and python instead of using Dask to store the
-                # data in memory for further computation **.
-                df = data_plug.get_data(key)
+                # Reads dataset file and creates dataframe, Here the function 
+                # reads data into pandas and python instead of using Dask to 
+                # store the data in memory for further computation **.
+                df = dataplug.get_data(key)
                 dh = DataHandler(df)
                 return (data_df, dh)
             except Exception as e:
@@ -201,60 +201,59 @@ class Runner:
 
         return self.df_reports
 
-    def compute(self, additional_columns=pd. DataFrame()):
+    def compute(self, 
+                report=False,
+                output_path="../results/",
+                dask_report="dask_report.html", 
+                summary_report="summary_report.csv", 
+                additional_columns=pd. DataFrame()):
         """Initializes computation of task graph from set_up() on the Dask 
-        Client. The results are saved as DataFrames and any additional columns 
-        provided by the user are are added to the Dataframe result. The new 
-        results table is returned.
-
-        :param additional_columns: DataFrames provided by the user to be 
-            appended to the result dataframe.
-        :type additional_columns: Pandas Dataframe
-        :return df: TYhe final results dataframe along with any additional 
-        columns provided by the user.
-        :rtype: Pandas Dataframe
-        """
-        summary_table = self.client.compute(self.df_reports)
-        df = summary_table.result()
-        df = df.reset_index(drop=True)
-        if not additional_columns.empty:
-            df = pd.concat([df, additional_columns], axis=1)
-
-        return df
-
-    def compute_report(self, 
-                       dask_report="dask-report.html", 
-                       summary_report="summary_report.csv", 
-                       additional_columns=pd. DataFrame()):
-        """Initializes computation of task graph from set_up() on the Dask 
-        Client and creates a performance report for the computations. The 
-        results are saved as DataFrames and any additional columns 
-        provided by the user are are added to the Dataframe result. The new 
-        results table is returned and the performance reports and the results 
-        data frame are stored on disk.
-
+        Client and generates a performance report when requested by the user. 
+        The results are saved as DataFrames and any additional columns provided 
+        by the user are are added to the Dataframe result. The new results table
+        is returned.
+        
+        :param report: Flag to produce performance report for computations.
+        :param report: bool
+        :param output_path: Directory path to save reports and results 
+            DataFrame.
+        :type output_path: string
         :param dask_report: Filename to save the performance report.
         :type dask_report: string
         :param summary_report: Filename to save the results dataframe as a .csv 
-            file
+            file.
         :type dask_report: string
-        :return df: TYhe final results dataframe along with any additional 
-        columns provided by the user.
+        :param additional_columns: DataFrames provided by the user to be 
+            appended to the result dataframe.
+        :type additional_columns: Pandas Dataframe
+        :return df: The final results dataframe along with any additional 
+            columns provided by the user.
         :rtype: Pandas Dataframe
         """
-        # test if the filepath exist, if not create it
-        time_stamp = strftime("%Y%m%d-%H%M%S")
-        if not os.path.exists(self.output_path):
-            os.makedirs(self.output_path)
-        # Compute tasks on cluster and save results
 
-        with performance_report(self.output_path + "/" + f"{time_stamp}-" + dask_report):
+        if report:
+            # checks and creates result directory if it doesn't exist
+            os.makedirs(output_path, exist_ok=True)
+
+            # test if the filepath exist, if not create it
+            time_stamp = strftime("%Y%m%d-%H%M%S")
+            # Compute tasks on cluster and save results'
+
+            with performance_report(output_path + f"{time_stamp}_" + 
+                                    dask_report):
+                summary_table = self.client.compute(self.df_reports)
+                df = summary_table.result()
+                df = df.reset_index(drop=True)
+
+                if not additional_columns.empty:
+                    df = pd.concat([df, additional_columns], axis=1)
+                df.to_csv(output_path + "/" + f"{time_stamp}_" + summary_report)
+
+        else:
             summary_table = self.client.compute(self.df_reports)
             df = summary_table.result()
             df = df.reset_index(drop=True)
-
             if not additional_columns.empty:
                 df = pd.concat([df, additional_columns], axis=1)
-            df.to_csv(self.output_path + "/" + f"{time_stamp}-" + summary_report)
-        
+
         return df
