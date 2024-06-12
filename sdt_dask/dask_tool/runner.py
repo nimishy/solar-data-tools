@@ -13,9 +13,6 @@ from time import strftime
 from dask.distributed import performance_report
 from solardatatools import DataHandler
 
-# TODO
-# : Update function documentations after successful coding and execution
-
 class Runner:
     """A class to run the SolarDataTools pipeline on a Dask cluster.
         Will handle invalid data keys and failed datasets.
