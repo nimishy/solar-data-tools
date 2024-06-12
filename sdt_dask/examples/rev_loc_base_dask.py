@@ -142,7 +142,6 @@ if __name__ == '__main__':
     PERF_REPORT = bool(options.perf_report)
     FILE_PATH = options.dir_path
     REPORT_DIR = options.report_dir
-    RESULT_DIR = f"{REPORT_DIR}/{WORKERS}-workers_{THREADS}-threads/"
 
     # Defined LocalFiles DataPlug to read local CSV files
     data_plug = LocalFiles(path_to_files=FILE_PATH)
@@ -150,9 +149,6 @@ if __name__ == '__main__':
     
     if NUMBER_FILES > 0: 
         KEYS = KEYS[:NUMBER_FILES]
-
-    # checks and creates result directory if it doesn't exist
-    os.makedirs(RESULT_DIR, exist_ok=True)
 
     # Dask Local client Setup
     client_setup = LocalClient(workers=WORKERS,
@@ -162,15 +158,11 @@ if __name__ == '__main__':
     client = client_setup.init_client()
 
     # Dask Tool initialization and set up
-    dask_tool = Runner(client=client,
-                       output_path=RESULT_DIR)
+    dask_tool = Runner(client=client)
     dask_tool.set_up(KEYS, data_plug, fix_shifts=True, verbose=VERBOSE)
 
-    if PERF_REPORT:
-        # Dask Tool Task Compute and client shutdown
-        df = dask_tool.compute_report()
-    else:
-        df = dask_tool.compute()
+    # Dask Tool Task Compute and client shutdown
+    df = dask_tool.compute(report=PERF_REPORT, output_path=REPORT_DIR)
 
     print(df)
     client.shutdown()
