@@ -1,7 +1,7 @@
 """
 
 This module provides a class to run the SolarDataTools pipeline on a Dask cluster.
-It takes a data plug and a dask client as input and runs the pipeline on the data plug
+It takes a data plug and a Dask client as input and runs the pipeline on the data plug
 
 See the README and tool_demo_SDTDask.ipynb for more information
 
@@ -13,6 +13,9 @@ from time import strftime
 from dask.distributed import performance_report
 from solardatatools import DataHandler
 
+# TODO
+# : Update function documentations after successful coding and execution
+
 class Runner:
     """A class to run the SolarDataTools pipeline on a Dask cluster.
         Will handle invalid data keys and failed datasets.
@@ -23,9 +26,11 @@ class Runner:
             output_path (str): The path to save the results.
     """
 
+    
     def __init__(self, client, output_path="../results/"):
         self.client = client
         self.output_path = output_path
+
 
     def set_up(self, KEYS, data_plug, **kwargs):
         """function to set up the pipeline on the data plug
@@ -40,12 +45,12 @@ class Runner:
         """
 
         def get_data(key):
-            """Creates a dataframe for a key that includes the errors for the
-            functions performed on the file and its datahandler.
+            """Creates a DataFrame for a key that includes the errors for the
+            functions performed on the file and its DataHandler.
 
             :param key: The key combination of the file
             :type key: tuple
-            :return: Returns the dataframe for the key and its datahandler
+            :return: Returns the dataframe for the key and its DataHandler
             :rtype: tuple"""
 
             # Addition of function error status for key
@@ -68,7 +73,7 @@ class Runner:
 
             try:
                 # Reads CSV file and creates dataframe, Here the function reads
-                # data into pandas and python instead of using dask to store the
+                # data into pandas and python instead of using Dask to store the
                 # data in memory for further computation **.
                 df = data_plug.get_data(key)
                 dh = DataHandler(df)
@@ -76,25 +81,26 @@ class Runner:
             except Exception as e:
                 data_df["get_data error"] = str(e)
                 return (data_df,)
+            
 
         def run_pipeline(data_tuple, **kwargs):
             """Function runs the pipeline and appends the results to the
             dataframe. The function also stores the exceptions for the function
             call into its respective errors
 
-            :param data_tuple: The tuple consists of the dataframe and datahandler
+            :param data_tuple: The tuple consists of the dataframe and DataHandler
             :type data_tuple: tuple
-            :param kwargs: The keyword arguments passed to the datahandler's
+            :param kwargs: The keyword arguments passed to the DataHandler's
                 run_pipeline
             :type kwargs: dict
-            :return: tuple containing key dataframe and datahandler
+            :return: tuple containing key dataframe and DataHandler
             :rtype: tuple
             """
 
             # Assigns the dataframe, the first element of the tuple.
             data_df = data_tuple[0]
 
-            # Change the errors if no datahandler is created
+            # Change the errors if no DataHandler is created
             if data_df.iloc[0]["get_data error"] != "No error":
                 error = "get_data error lead to nothing"
                 data_df["run_pipeline error"] = error
@@ -103,7 +109,7 @@ class Runner:
                 data_df["run_loss_analysis_report error"] = error
                 return (data_df,)
 
-            # Calls datahndler's run_pipeline and handles errors
+            # Calls DataHandler's run_pipeline and handles errors
             else:
                 datahandler = data_tuple[1]
 
@@ -140,6 +146,7 @@ class Runner:
                     print(e)
 
             return (data_df, datahandler)
+        
 
         def run_loss_analysis(data_tuple):
             """Runs the Loss analysis on the pipeline, handles errors and saves
@@ -169,40 +176,68 @@ class Runner:
                     data_df["run_loss_analysis_report error"] = str(e)
 
             return data_df
-        ### START: DASK DELAYED ###
-        # results = []
-        #
-        # # For larger number of files it is recommended to use dask collections
-        # # instead of a for loop **
-        # # Reference:
-        # #   https://docs.dask.org/en/latest/delayed-best-practices.html#avoid-too-many-tasks
-        # for key in KEYS:
-        #     data_tuple_0 = delayed(get_data)(key)
-        #     # data_tuple_0 = delayed(data_tuple_0)
-        #     data_tuple_1 = delayed(run_pipeline)(data_tuple_0, fix_shifts=True,
-        #                                          verbose=False)
-        #     # data_tuple_1 = delayed(data_tuple_1)
-        #
-        #     result_df = delayed(run_loss_analysis)(data_tuple_1)
-        #     results.append(result_df)
-        #
-        # self.df_reports = delayed(pd.concat)(results)
-        ### END: DASK DELAYED ###
 
-        ### START: DASK FUTURES ###
-        scattered_keys = self.client.scatter(KEYS)
-        dfs = self.client.map(get_data, scattered_keys)
-        df_run = self.client.map(run_pipeline, dfs, fix_shifts=True, verbose=False)
-        self.df_results = self.client.map(run_loss_analysis, df_run)
-        ### END: DASK FUTURES ###
+        results = []
+        
+        # For larger number of files it is recommended to use Dask collections
+        # instead of a for loop **
+        # Reference:
+        #   https://docs.dask.org/en/latest/delayed-best-practices.html#avoid-too-many-tasks
+        for key in KEYS:
+            data_tuple_0 = delayed(get_data)(key)
+            # data_tuple_0 = delayed(data_tuple_0)
+            data_tuple_1 = delayed(run_pipeline)(data_tuple_0, fix_shifts=True,
+                                                 verbose=False)
+            # data_tuple_1 = delayed(data_tuple_1)
+        
+            result_df = delayed(run_loss_analysis)(data_tuple_1)
+            results.append(result_df)
+        
+        self.df_reports = delayed(pd.concat)(results)
 
+        return self.df_reports
 
+    def compute(self, additional_columns=pd. DataFrame()):
+        """Initializes computation of task graph from set_up() on the Dask 
+        Client. The results are saved as DataFrames and any additional columns 
+        provided by the user are are added to the Dataframe result. The new 
+        results table is returned.
 
-    def visualize(self, filename="sdt_graph.png"):
-        # visualize the pipeline, user should have graphviz installed
-        self.df_results.visualize(filename)
+        :param additional_columns: DataFrames provided by the user to be 
+            appended to the result dataframe.
+        :type additional_columns: Pandas Dataframe
+        :return df: TYhe final results dataframe along with any additional 
+        columns provided by the user.
+        :rtype: Pandas Dataframe
+        """
+        summary_table = self.client.compute(self.df_reports)
+        df = summary_table.result()
+        df = df.reset_index(drop=True)
+        if not additional_columns.empty:
+            df = pd.concat([df, additional_columns], axis=1)
 
-    def get_result(self, dask_report="dask-report.html", summary_report="summary_report.csv", additional_columns=pd. DataFrame()):
+        return df
+
+    def compute_report(self, 
+                       dask_report="dask-report.html", 
+                       summary_report="summary_report.csv", 
+                       additional_columns=pd. DataFrame()):
+        """Initializes computation of task graph from set_up() on the Dask 
+        Client and creates a performance report for the computations. The 
+        results are saved as DataFrames and any additional columns 
+        provided by the user are are added to the Dataframe result. The new 
+        results table is returned and the performance reports and the results 
+        data frame are stored on disk.
+
+        :param dask_report: Filename to save the performance report.
+        :type dask_report: string
+        :param summary_report: Filename to save the results dataframe as a .csv 
+            file
+        :type dask_report: string
+        :return df: TYhe final results dataframe along with any additional 
+        columns provided by the user.
+        :rtype: Pandas Dataframe
+        """
         # test if the filepath exist, if not create it
         time_stamp = strftime("%Y%m%d-%H%M%S")
         if not os.path.exists(self.output_path):
@@ -210,10 +245,12 @@ class Runner:
         # Compute tasks on cluster and save results
 
         with performance_report(self.output_path + "/" + f"{time_stamp}-" + dask_report):
-            dfs = self.client.gather(self.df_results)
-            df = pd.concat(dfs)
+            summary_table = self.client.compute(self.df_reports)
+            df = summary_table.result()
+            df = df.reset_index(drop=True)
+
             if not additional_columns.empty:
                 df = pd.concat([df, additional_columns], axis=1)
             df.to_csv(self.output_path + "/" + f"{time_stamp}-" + summary_report)
-
-        self.client.shutdown()
+        
+        return df
