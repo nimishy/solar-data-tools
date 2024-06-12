@@ -1,9 +1,10 @@
 """
+This module provides a class to run the SolarDataTools pipeline on a Dask 
+Cluster. It takes a Dask Client as input and use the DataPlug to retrieve 
+datasets to run with the pipeline on the Dask Client after setting up the task 
+graph.
 
-This module provides a class to run the SolarDataTools pipeline on a Dask cluster.
-It takes a data plug and a Dask client as input and runs the pipeline on the data plug
-
-See the README and tool_demo_SDTDask.ipynb for more information
+See the README and tool_demo_SDTDask.ipynb for more information.
 
 """
 import os
@@ -15,12 +16,13 @@ from solardatatools import DataHandler
 
 class Runner:
     """A class to run the SolarDataTools pipeline on a Dask cluster.
-        Will handle invalid data keys and failed datasets.
+    Handles invalid data keys and failed datasets.
 
-        :param keys:
-            data_plug (:obj:`DataPlug`): The data plug object.
-            client (:obj:`Client`): The Dask client object.
-            output_path (str): The path to save the results.
+    :param client: The initialized Dask Client Object to submit the task 
+        graph for computations.
+    :type client: Dask Client Object
+    :param output_path: Directory path to save reports and results DataFrame.
+    :type output_path: string
     """
 
     
@@ -30,25 +32,27 @@ class Runner:
 
 
     def set_up(self, KEYS, data_plug, **kwargs):
-        """function to set up the pipeline on the data plug
+        """Function to retrieve datasets using the keys and DataPlugs. Sets up 
+        the pipeline on the Dask Client by creating a task graph.
 
-        Call run_pipeline functions in a for loop over the keys
-        and collect results in a DataFrame
+        Calls run_pipeline functions in a for loop over the keys
+        and appends results to a DataFrame.
 
-        :param keys:
-            KEYS (list): List of tuples
-            **kwargs: Optional parameters.
-
+        :param keys: List of tuples to used to access PV datasets.
+        :type keys: list
+        :param kwargs: Additional arguments for solardatatools run_pipeline.
+        :type kwargs: dict
         """
 
         def get_data(key):
             """Creates a DataFrame for a key that includes the errors for the
             functions performed on the file and its DataHandler.
 
-            :param key: The key combination of the file
+            :param key: The key combination of the file.
             :type key: tuple
-            :return: Returns the dataframe for the key and its DataHandler
-            :rtype: tuple"""
+            :return: Returns the dataframe for the key and its DataHandler.
+            :rtype: tuple
+            """
 
             # Addition of function error status for key
             errors = {"get_data error": ["No error"],
@@ -83,14 +87,16 @@ class Runner:
         def run_pipeline(data_tuple, **kwargs):
             """Function runs the pipeline and appends the results to the
             dataframe. The function also stores the exceptions for the function
-            call into its respective errors
+            call into its respective errors.
 
-            :param data_tuple: The tuple consists of the dataframe and DataHandler
+            :param data_tuple: The tuple consists of the dataframe and 
+                DataHandler.
             :type data_tuple: tuple
             :param kwargs: The keyword arguments passed to the DataHandler's
-                run_pipeline
+                run_pipeline.
             :type kwargs: dict
-            :return: tuple containing key dataframe and DataHandler
+            :return: Tuple containing key's pipeline results DataFrame and 
+                DataHandler.
             :rtype: tuple
             """
 
@@ -153,7 +159,8 @@ class Runner:
             :param data_tuple: A tuple containing the key dataframe and the
                 datahandler object.
             :type data_tuple: tuple
-            :return: key dataframe with appended reports and assigned error values
+            :return: key dataframe with appended reports and assigned error 
+                values.
             :rtype: Pandas DataFrame
             """
             data_df = data_tuple[0]
